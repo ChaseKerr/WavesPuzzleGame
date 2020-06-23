@@ -17,15 +17,23 @@ public class WaterMeshGenerator : MonoBehaviour
     private int ySize = 0;
 
     // temporary
+    private float waveRadius = 0.0f;
+    private int maxRadius = 0;
+
+    public Vector2Int origin = new Vector2Int(50, 50);
     private List<bool> activated = new List<bool>();  // list of which indices are active
     private List<float> times = new List<float>();
-    private float waveRadius = 0.0f;
+
+    public float waveVerticleShift = 0.0f;  // vertical shift of the entire sine wave
+    public float waveAmplitude = 0.0f;      // range of the sine wave (vertical height)
+    public float wavePeriod = 0.0f;         // rate at which the sine wave repeats (vertical speed)
 
     // Start is called before the first frame update
     void Start()
     {
         mesh = new Mesh();
         GetComponent<MeshFilter>().mesh = mesh;
+        GetComponent<MeshCollider>().sharedMesh = mesh;
 
         vertices = new Vector3[xSize * ySize];
 
@@ -44,49 +52,54 @@ public class WaterMeshGenerator : MonoBehaviour
             activated.Add(false);
             times.Add(0.0f);
         }
+        float halfX = xSize / 2;
+        float halfY = ySize / 2;
+        maxRadius = Mathf.CeilToInt(Mathf.Sqrt(halfX * halfX + halfY * halfY));
     }
 
     // Update is called once per frame
     void Update()
     {
-        waveRadius += 5 * Time.deltaTime;
-
         // UPDATE VERTICES
 
-        // calculate next vertices to be activated
-        Vector2Int origin = new Vector2Int(50, 50);
-        List<Vector2Int> next = new List<Vector2Int>();
-        float threshold = waveRadius * waveRadius;
-
-        for (int i = (int)-waveRadius; i <= (int)waveRadius; ++i)
+        if (waveRadius < maxRadius)
         {
-            for (int j = (int)-waveRadius; j <= (int)waveRadius; ++j)
+            waveRadius += 5 * Time.deltaTime;
+
+            // calculate next vertices to be activated
+            List<Vector2Int> next = new List<Vector2Int>();
+            float threshold = waveRadius * waveRadius;
+
+            for (int i = (int)-waveRadius; i <= (int)waveRadius; ++i)
             {
-                if (i * i + j * j < threshold)
+                for (int j = (int)-waveRadius; j <= (int)waveRadius; ++j)
                 {
-                    next.Add(new Vector2Int(i, j));
+                    if (i * i + j * j < threshold)
+                    {
+                        next.Add(new Vector2Int(i, j));
+                    }
                 }
             }
-        }
 
-        // check all points and activate points not already active
-        foreach (Vector2Int pos in next)
-        {
-            // original pos centered around 0,0
-            // so this adjusts by shifting the wave origin
-            Vector2Int shifted = pos + origin;
-
-            if (shifted.x >= 0 && shifted.x < xSize &&
-                shifted.y >= 0 && shifted.y < ySize)
+            // check all points and activate points not already active
+            foreach (Vector2Int pos in next)
             {
-                // convert pos to index
-                int index = GetNearestWaterVertexIndex(shifted);
+                // original pos centered around 0,0
+                // so this adjusts by shifting the wave origin
+                Vector2Int shifted = pos + origin;
 
-                // add index if not already activated
-                if (!activated[index])
+                if (shifted.x >= 0 && shifted.x < xSize &&
+                    shifted.y >= 0 && shifted.y < ySize)
                 {
-                    activated[index] = true;
-                    times[index] = Time.time;
+                    // convert pos to index
+                    int index = GetNearestWaterVertexIndex(shifted);
+
+                    // add index if not already activated
+                    if (!activated[index])
+                    {
+                        activated[index] = true;
+                        times[index] = Time.time;
+                    }
                 }
             }
         }
@@ -96,7 +109,8 @@ public class WaterMeshGenerator : MonoBehaviour
         {
             if (activated[v])
             {
-                vertices[v].y = Mathf.Sin(Time.time - times[v]);
+                //vertices[v].y = Mathf.Sin(Time.time - times[v]);
+                vertices[v].y = waveAmplitude * Mathf.Sin(wavePeriod * (Time.time - times[v])) + waveVerticleShift;
             }
         }
 
@@ -148,6 +162,8 @@ public class WaterMeshGenerator : MonoBehaviour
 
         mesh.vertices = vertices;
         mesh.triangles = triangles;
+
+        GetComponent<MeshCollider>().sharedMesh = mesh;
 
         mesh.RecalculateNormals();
     }
